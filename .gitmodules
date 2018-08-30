@@ -1,0 +1,3 @@
+[submodule "open-sesame"]
+	path = open-sesame
+	url = https://github.com/swabhs/open-sesame.git

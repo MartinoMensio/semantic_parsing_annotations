@@ -1,0 +1,6 @@
+dynet
+nltk
+plac
+pylint
+pathlib2
+-e ./open-sesame
