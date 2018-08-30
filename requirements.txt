@@ -3,4 +3,5 @@ nltk
 plac
 pylint
 pathlib2
+matplotlib
 -e ./open-sesame
