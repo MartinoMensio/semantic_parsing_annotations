@@ -36,4 +36,5 @@ def main(dataset_name='botcycle'):
 
 
 if __name__ == '__main__':
-    plac.call(main)
+    for dataset in ['botcycle', 'atis', 'nlu-benchmark']:
+        plac.call(main, [dataset])

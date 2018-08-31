@@ -101,24 +101,25 @@ def print_matrix(matrix, in_types, out_types):
     # normalize by rows
     row_sums = matrix.sum(axis=1)
     new_matrix = matrix / row_sums[:, np.newaxis]
+    new_matrix = np.transpose(new_matrix)
     #print(new_matrix)
 
-    fig, ax = plt.subplots(figsize=(15, 5))
+    fig, ax = plt.subplots(figsize=(len(in_types)/3, len(out_types)/3)) #figsize=(15, 5)
     cmap = plt.get_cmap('Greens')
     im = ax.imshow(new_matrix, cmap=cmap)
 
     # labels
-    ax.set_xticks(np.arange(len(out_types)))
-    ax.set_yticks(np.arange(len(in_types)))
-    ax.set_xticklabels(out_types, rotation=90)
-    ax.set_yticklabels(in_types)
+    ax.set_xticks(np.arange(len(in_types)))
+    ax.set_yticks(np.arange(len(out_types)))
+    ax.set_xticklabels(in_types, rotation=90)
+    ax.set_yticklabels(out_types)
 
     plt.show()
 
 
 
-def main():
-    data_path = Path('data') / 'botcycle'
+def compute_alignment_matrix(dataset_name='botcycle'):
+    data_path = Path('data') / dataset_name
     gold, intent_types = read_gold(data_path / 'source.json')
     open_sesame, frame_types = read_conll(data_path / 'predicted_opensesame.conll')
     all = by_text(gold + open_sesame)
@@ -126,4 +127,6 @@ def main():
     print_matrix(matrix, intent_types, frame_types)
 
 if __name__ == '__main__':
-    main()
+    compute_alignment_matrix('botcycle')
+    compute_alignment_matrix('atis')
+    compute_alignment_matrix('nlu-benchmark')
