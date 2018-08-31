@@ -70,11 +70,12 @@ def by_text(samples):
     """
     key_fn = lambda x: x['text']
     result = {
-        g[0]: {
-            'words': next(g[1])['words'],
-            'interpretations': [s['interpretation'] for s in g[1]],
+        k: {
+            'words': g[0]['words'],
+            'interpretations': [s['interpretation'] for s in g],
         }
-        for g in itertools.groupby(sorted(samples, key=key_fn), key_fn)
+        # after grouping by, the map in brackets below is built to pass from an iterator to a list so that g[0] does not consume the first iteration removing one interpretation
+        for k, g in {k: list(g) for k,g in itertools.groupby(sorted(samples, key=key_fn), key_fn)}.items()
     }
     return result
 
@@ -116,14 +117,18 @@ def print_matrix(matrix, in_types, out_types):
 
     plt.show()
 
+def save_to_file(data, path):
+    with open(str(path), 'w') as f:
+        json.dump(data, f, indent=2)
 
 
 def compute_alignment_matrix(dataset_name='botcycle'):
     data_path = Path('data') / dataset_name
     gold, intent_types = read_gold(data_path / 'source.json')
     open_sesame, frame_types = read_conll(data_path / 'predicted_opensesame.conll')
-    all = by_text(gold + open_sesame)
-    matrix = frame_mappings(all, intent_types, frame_types)
+    grouped = by_text(gold + open_sesame)
+    save_to_file(grouped, data_path / 'compared_by_sentence.json')
+    matrix = frame_mappings(grouped, intent_types, frame_types)
     print_matrix(matrix, intent_types, frame_types)
 
 if __name__ == '__main__':
