@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-for DATASET in botcycle atis nlu-benchmark
+for DATASET in botcycle atis nlu-benchmark huric
 do
     pushd open-sesame
     python -m sesame.targetid --mode predict --model_name fn1.7-pretrained-targetid --raw_input ../data/${DATASET}/sentences.txt
