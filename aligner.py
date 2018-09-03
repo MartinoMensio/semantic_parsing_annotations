@@ -5,6 +5,8 @@ import os
 import itertools
 import numpy as np
 
+from IPython.display import HTML, display
+
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -30,7 +32,7 @@ def read_gold(path):
         } for s in content['data']
     ]
     # TODO remove duplicates!!! Why wit.ai allowed that??
-    return result, content['meta']['intent_types']
+    return result, np.array(content['meta']['intent_types'])
 
 def read_conll(path):
     """ """
@@ -60,7 +62,7 @@ def read_conll(path):
             }
         } for s in samples
     ]
-    classes = sorted(set([s['interpretation']['class'] for s in result]))
+    classes = np.array(sorted(set([s['interpretation']['class'] for s in result])))
     return result, classes
 
 def by_text(samples):
@@ -80,7 +82,7 @@ def by_text(samples):
     return result
 
 def frame_mappings(interpretations_by_text, in_types, out_types):
-    # build maps from names to indexes for intents and frame names
+    # build maps from names to indexes for intents and frame names. matrix is indexed [in_idx, out_idx], where in_idx and out_idx can be obtained by looking at the other two returned dicts
     in_types_lookup = {el[1]: el[0] for el in enumerate(in_types)}
     out_types_lookup = {el[1]: el[0] for el in enumerate(out_types)}
     matrix = np.zeros((len(in_types_lookup), len(out_types_lookup)))
@@ -96,7 +98,7 @@ def frame_mappings(interpretations_by_text, in_types, out_types):
         for in_, out_ in points:
             matrix[in_, out_] += 1
 
-    return matrix
+    return matrix, in_types_lookup, out_types_lookup
 
 def print_matrix(matrix, in_types, out_types):
     # normalize by rows
@@ -121,17 +123,55 @@ def save_to_file(data, path):
     with open(str(path), 'w') as f:
         json.dump(data, f, indent=2)
 
-
-def compute_alignment_matrix(dataset_name='botcycle'):
+def read_annotations_and_group(dataset_name):
     data_path = Path('data') / dataset_name
     gold, intent_types = read_gold(data_path / 'source.json')
     open_sesame, frame_types = read_conll(data_path / 'predicted_opensesame.conll')
     grouped = by_text(gold + open_sesame)
-    save_to_file(grouped, data_path / 'compared_by_sentence.json')
-    matrix = frame_mappings(grouped, intent_types, frame_types)
+    # TODO write one time to file, and then avoid doing every time all the grouping by
+    #save_to_file(grouped, data_path / 'compared_by_sentence.json')
+    return grouped, intent_types, frame_types
+
+def print_annotations(grouped_samples):
+    for sentence in grouped_samples.values():
+        rows = {}
+        rows['WORDS'] = sentence['words']
+        for annot in sentence['interpretations']:
+            rows['{}_{}'.format(annot['source'], annot['class'])] = annot['IOB']
+        display_sequences(rows.keys(), rows.values())
+
+def display_sequences(row_names, sequences):
+    html_str = '<table><tr>{}</tr></table>'.format(
+        '</tr><tr>'.join(
+            '<td><b>{}</b></td>'.format(row_name) +
+            ''.join(['<td style="background-color: {};">{}</td>'.format(get_color(value), value) for value in row])
+            for row_name, row in zip(row_names, sequences)
+        )
+    )
+    display(HTML(html_str))
+
+def get_color(value):
+    if value == 'O':
+        return 'rgb(255,255,255)'
+    else:
+        return 'rgb(0,255,0)'
+
+def compute_alignment_matrix(dataset_name='botcycle'):
+    grouped, intent_types, frame_types = read_annotations_and_group(dataset_name)
+
+    matrix, intents_lookup, frames_lookup = frame_mappings(grouped, intent_types, frame_types)
+    for idx, row in enumerate(matrix):
+        # get the indexes of the top elements in the row (the most counted frames)
+        best_3_idx = row.argsort()[-3:][::-1]
+        # get a list of (name, count) of the frames
+        best_3_with_scores = list(zip(frame_types[best_3_idx], row[best_3_idx]))
+        print(intent_types[idx], '-->', best_3_with_scores)
+    # and also display the matrix
     print_matrix(matrix, intent_types, frame_types)
+    return matrix, intent_types, frame_types
 
 if __name__ == '__main__':
     compute_alignment_matrix('botcycle')
     compute_alignment_matrix('atis')
     compute_alignment_matrix('nlu-benchmark')
+    compute_alignment_matrix('huric')

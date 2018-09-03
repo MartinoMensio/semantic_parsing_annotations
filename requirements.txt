@@ -4,4 +4,6 @@ plac
 pylint
 pathlib2
 matplotlib
+ipython
+ipywidgets
 -e ./open-sesame
