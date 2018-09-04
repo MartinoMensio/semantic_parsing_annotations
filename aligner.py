@@ -31,7 +31,10 @@ def read_gold(path):
             }
         } for s in content['data']
     ]
-    # TODO remove duplicates!!! Why wit.ai allowed that??
+    # remove duplicates!!! Why wit.ai allowed that??
+    d = {el['text']: el for el in result}
+    result = list(d.values())
+
     return result, np.array(content['meta']['intent_types'])
 
 def read_conll(path):
@@ -81,10 +84,14 @@ def by_text(samples):
     }
     return result
 
-def frame_mappings(interpretations_by_text, in_types, out_types):
+def get_reverse_mapping(list_of_values):
+    """Returns a dict with {value: index}"""
+    return {el[1]: el[0] for el in enumerate(list_of_values)}
+
+def get_alignment_matrix(interpretations_by_text, in_types, out_types):
     # build maps from names to indexes for intents and frame names. matrix is indexed [in_idx, out_idx], where in_idx and out_idx can be obtained by looking at the other two returned dicts
-    in_types_lookup = {el[1]: el[0] for el in enumerate(in_types)}
-    out_types_lookup = {el[1]: el[0] for el in enumerate(out_types)}
+    in_types_lookup = get_reverse_mapping(in_types)
+    out_types_lookup = get_reverse_mapping(out_types)
     matrix = np.zeros((len(in_types_lookup), len(out_types_lookup)))
     for text, annots in interpretations_by_text.items():
         ins = []
@@ -156,22 +163,25 @@ def get_color(value):
     else:
         return 'rgb(0,255,0)'
 
-def compute_alignment_matrix(dataset_name='botcycle'):
+def main(dataset_name='botcycle'):
     grouped, intent_types, frame_types = read_annotations_and_group(dataset_name)
 
-    matrix, intents_lookup, frames_lookup = frame_mappings(grouped, intent_types, frame_types)
-    for idx, row in enumerate(matrix):
-        # get the indexes of the top elements in the row (the most counted frames)
-        best_3_idx = row.argsort()[-3:][::-1]
-        # get a list of (name, count) of the frames
-        best_3_with_scores = list(zip(frame_types[best_3_idx], row[best_3_idx]))
-        print(intent_types[idx], '-->', best_3_with_scores)
+    matrix, intents_lookup, frames_lookup = get_alignment_matrix(grouped, intent_types, frame_types)
+    print_best_n_for_each_gold_type(matrix, intent_types, frame_types, 3)
     # and also display the matrix
     print_matrix(matrix, intent_types, frame_types)
-    return matrix, intent_types, frame_types
+
+def print_best_n_for_each_gold_type(matrix, intent_types, frame_types, n=3):
+    for idx, row in enumerate(matrix):
+        # get the indexes of the top elements in the row (the most counted frames)
+        best_n_idx = row.argsort()[-n:][::-1]
+        # get a list of (name, count) of the frames
+        best_n_with_scores = list(zip(frame_types[best_n_idx], row[best_n_idx]))
+        print(intent_types[idx], '-->', best_n_with_scores)
+
 
 if __name__ == '__main__':
-    compute_alignment_matrix('botcycle')
-    compute_alignment_matrix('atis')
-    compute_alignment_matrix('nlu-benchmark')
-    compute_alignment_matrix('huric')
+    main('botcycle')
+    main('atis')
+    main('nlu-benchmark')
+    main('huric')
