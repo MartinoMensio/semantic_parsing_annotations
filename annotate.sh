@@ -9,4 +9,7 @@ do
     popd
 
     cp open-sesame/logs/fn1.7-pretrained-argid/predicted-args.conll data/${DATASET}/predicted_opensesame.conll
+
+    # also allennlp from http://demo.allennlp.org/predict/semantic-role-labeling
+    ./allennlp.py data/${DATASET}/sentences.txt data/${DATASET}/predicted_allennlp.json
 done

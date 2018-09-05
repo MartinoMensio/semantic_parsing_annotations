@@ -6,4 +6,6 @@ pathlib2
 matplotlib
 ipython
 ipywidgets
+tqdm
+requests
 -e ./open-sesame

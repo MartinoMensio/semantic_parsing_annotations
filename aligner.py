@@ -139,8 +139,10 @@ def read_annotations_and_group(dataset_name):
     #save_to_file(grouped, data_path / 'compared_by_sentence.json')
     return grouped, intent_types, frame_types
 
-def print_annotations(grouped_samples):
-    for sentence in grouped_samples.values():
+def print_annotations(grouped_samples, max_display=None):
+    for idx, sentence in enumerate(grouped_samples.values()):
+        if idx > max_display:
+            break
         rows = {}
         rows['WORDS'] = sentence['words']
         for annot in sentence['interpretations']:
