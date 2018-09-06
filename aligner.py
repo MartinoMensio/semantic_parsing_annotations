@@ -4,6 +4,7 @@ import json
 import os
 import itertools
 import numpy as np
+import unicodedata
 
 from IPython.display import HTML, display
 
@@ -16,6 +17,10 @@ def read_gold(path):
     """Reads the gold annotations in the format used in botcycle (https://github.com/D2KLab/botcycle/tree/master/nlu/data)"""
     with open(str(path)) as f:
         content = json.load(f)
+
+    # avoid non-ascii
+    for s in content['data']:
+        s['words'] = [unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore') for w in s['words']]
     result = [
         {
             'text': ' '.join(s['words']).lower(),
@@ -25,7 +30,7 @@ def read_gold(path):
                 # a single frame per sentence in the gold format
                 'class': s['intent'],
                 # this is not stored in the gold format
-                'lu_index': -1,
+                'lu_indicator': ['_' for _ in s['slots']],
                 # the IOB for FrameElements
                 'IOB': s['slots']
             }
@@ -59,7 +64,7 @@ def read_conll(path):
                 # a single frame per sentence in the gold format
                 'class': next(w[13] for w in s if w[13] != '_'),
                 # this is not stored in the gold format
-                'lu_index': 'TODO',
+                'lu_indicator': [w[-3] for w in s],
                 # the IOB for FrameElements
                 'IOB': [w[-1] for w in s]
             }
@@ -167,6 +172,8 @@ def get_color(value):
 
 def main(dataset_name='botcycle'):
     grouped, intent_types, frame_types = read_annotations_and_group(dataset_name)
+    # write only in the main
+    save_to_file(grouped, Path('data') / dataset_name / 'compared_by_sentence.json')
 
     matrix, intents_lookup, frames_lookup = get_alignment_matrix(grouped, intent_types, frame_types)
     print_best_n_for_each_gold_type(matrix, intent_types, frame_types, 3)

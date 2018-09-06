@@ -21,6 +21,7 @@ def dataset_to_sents(dataset):
 
     # remove non-ascii
     sentences = [unicodedata.normalize('NFKD', unicode(s)).encode('ascii', 'ignore') for s in sentences]
+    sentences = set(sentences)
 
     return sentences
 
