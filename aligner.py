@@ -70,15 +70,53 @@ def read_conll(path):
             }
         } for s in samples
     ]
-    classes = np.array(sorted(set([s['interpretation']['class'] for s in result])))
+    classes = set([s['interpretation']['class'] for s in result])
     return result, classes
+
+def read_semafor(path):
+    with open(str(path)) as f:
+        content = f.readlines()
+
+    annots = []
+    frame_types = []
+
+    for l in content:
+        source_annot = json.loads(l)
+        words = source_annot['tokens']
+        for f in source_annot['frames']:
+            frame_type = f['target']['name']
+            frame_types.append(frame_type)
+            iob = ['O'] * len(words)
+            for annotation_set in f['annotationSets']:
+                #print(annotation_set)
+                for fe in annotation_set['frameElements']:
+                    fe_name = fe['name']
+                    fe_tokens_id = range(fe['spans'][0]['start'], fe['spans'][0]['end'])
+                    print(fe_tokens_id)
+                    iob[fe_tokens_id[0]] = 'B-{}'.format(fe_name)
+                    for i in fe_tokens_id[1:]:
+                        iob[i] = 'I-{}'.format(fe_name)
+            print(iob)
+            annots.append({
+                'text': ' '.join(words),
+                'words': words,
+                'interpretation': {
+                    'source': 'SEMAFOR',
+                    'class': frame_type,
+                    'lu_indicator': [f['target']['spans'][0]['text'] if idx >= f['target']['spans'][0]['start'] and idx < f['target']['spans'][0]['end'] else '_' for idx, w in enumerate(words)],
+                    'IOB': iob
+                }
+            })
+
+
+    return annots, set(frame_types)
 
 def by_text(samples):
     """
     Given an iterable of samples, returns a dict {sentence: list(interpretations)}
     where an interpretation is something like {'frame': str, 'iob': list(IOB)}
     """
-    key_fn = lambda x: x['text']
+    key_fn = lambda x: x['text'].lower()
     result = {
         k: {
             'words': g[0]['words'],
@@ -87,6 +125,7 @@ def by_text(samples):
         # after grouping by, the map in brackets below is built to pass from an iterator to a list so that g[0] does not consume the first iteration removing one interpretation
         for k, g in {k: list(g) for k,g in itertools.groupby(sorted(samples, key=key_fn), key_fn)}.items()
     }
+    #print(result.keys())
     return result
 
 def get_reverse_mapping(list_of_values):
@@ -138,11 +177,13 @@ def save_to_file(data, path):
 def read_annotations_and_group(dataset_name):
     data_path = Path('data') / dataset_name
     gold, intent_types = read_gold(data_path / 'source.json')
-    open_sesame, frame_types = read_conll(data_path / 'predicted_opensesame.conll')
-    grouped = by_text(gold + open_sesame)
+    open_sesame, frame_types_open_sesame = read_conll(data_path / 'predicted_opensesame.conll')
+    semafor, frame_types_semafor = read_semafor(data_path / 'predicted_semafor.json')
+    all_frame_types = frame_types_open_sesame.union(frame_types_semafor)
+    grouped = by_text(gold + open_sesame + semafor)
     # TODO write one time to file, and then avoid doing every time all the grouping by
     #save_to_file(grouped, data_path / 'compared_by_sentence.json')
-    return grouped, intent_types, frame_types
+    return grouped, intent_types, np.array(sorted(all_frame_types))
 
 def print_annotations(grouped_samples, max_display=None):
     for idx, sentence in enumerate(grouped_samples.values()):

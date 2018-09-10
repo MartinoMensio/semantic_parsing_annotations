@@ -10,6 +10,9 @@ do
 
     cp open-sesame/logs/fn1.7-pretrained-argid/predicted-args.conll data/${DATASET}/predicted_opensesame.conll
 
+    # also SEMAFOR
+    semafor/bin/runSemafor.sh data/${DATASET}/sentences.txt ${PWD}/data/${DATASET}/predicted_semafor.json 4
+
     # also allennlp from http://demo.allennlp.org/predict/semantic-role-labeling
     ./allennlp.py data/${DATASET}/sentences.txt data/${DATASET}/predicted_allennlp.json
 done

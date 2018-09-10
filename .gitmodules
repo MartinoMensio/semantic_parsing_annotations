@@ -1,3 +1,6 @@
 [submodule "open-sesame"]
 	path = open-sesame
 	url = https://github.com/swabhs/open-sesame.git
+[submodule "semafor"]
+	path = semafor
+	url = https://github.com/Noahs-ARK/semafor.git
