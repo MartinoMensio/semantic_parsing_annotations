@@ -20,7 +20,7 @@ def dataset_to_sents(dataset):
     sentences = [' '.join(sample['words']) for sample in dataset['data']]
 
     # remove non-ascii
-    sentences = [unicodedata.normalize('NFKD', unicode(s)).encode('ascii', 'ignore') for s in sentences]
+    sentences = [unicodedata.normalize('NFKD', unicode(s)).encode('ascii', 'replace') for s in sentences]
     sentences = set(sentences)
 
     return sentences

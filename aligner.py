@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import json
 import os
 import itertools
@@ -20,21 +22,22 @@ def read_gold(path):
 
     # avoid non-ascii
     for s in content['data']:
-        s['words'] = [unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore') for w in s['words']]
+        s['words'] = [unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'replace').lower() for w in s['words']]
     result = [
         {
-            'text': ' '.join(s['words']).lower(),
+            'text': ' '.join(s['words']),
             'words': s['words'],
             'interpretation': {
                 'source': 'GOLD',
                 # a single frame per sentence in the gold format
                 'class': s['intent'],
                 # this is not stored in the gold format
-                'lu_indicator': ['_' for _ in s['slots']],
+                'lu_indicator': get_lu_indicator_from_slots(s),
                 # the IOB for FrameElements
                 'IOB': s['slots']
-            }
-        } for s in content['data']
+            },
+            'id': int(s.get('id', idx))
+        } for idx, s in enumerate(content['data'])
     ]
     # remove duplicates!!! Why wit.ai allowed that??
     d = {el['text']: el for el in result}
@@ -42,10 +45,23 @@ def read_gold(path):
 
     return result, np.array(content['meta']['intent_types'])
 
-def read_conll(path):
+def get_lu_indicator_from_slots(sample):
+    result = ['_' for _ in sample['slots']]
+    lu_indexes = sample.get('lexical_unit_ids', [])
+    for lu in lu_indexes:
+        index = lu - sample['start_token_id']
+        result[index] = sample['words'][index]
+    return result
+
+def read_conll(path, gold):
     """ """
     with open(str(path)) as f:
         content = f.read().strip()
+
+    # gold is there to fix some issues of open-sesame
+    gold_samples_by_id = {s['id']: s for s in gold}
+    #for k,v in gold_samples_by_id.items():
+    #    print(k, v['words'])
 
     samples = [
         [
@@ -54,7 +70,24 @@ def read_conll(path):
         ]
         for s in content.split('\n\n')
     ]
-
+    # open-sesame does a mess: replaces some words with UNK. Let's restore the proper word
+    for s in samples:
+        broken = []
+        sentence = ''
+        for idx, w in enumerate(s):
+            sentence += ' ' + w[1]
+            if w[1] == 'unk':
+                broken.append(idx)
+                #gold_sample = gold_samples_by_id[int(w[6])]
+                #print(idx, s, gold_sample)
+                #w[1] = gold_sample['words'][idx]
+        if broken:
+            indexes_to_compare = set(range(len(s))).difference(set(broken))
+            print(sentence, 'broken', broken, 'to_compare', indexes_to_compare)
+            matching_gold = [gs for gs in gold if all([s[idx][1] == gs['words'][idx] for idx in range(len(gs['words'])) if idx in indexes_to_compare]) and len(s) == len(gs['words'])]
+            print(len(matching_gold), matching_gold)
+            for idx in broken:
+                s[idx][1] = matching_gold[0]['words'][idx]
     result = [
         {
             'text': ' '.join([w[1] for w in s]),
@@ -92,11 +125,11 @@ def read_semafor(path):
                 for fe in annotation_set['frameElements']:
                     fe_name = fe['name']
                     fe_tokens_id = range(fe['spans'][0]['start'], fe['spans'][0]['end'])
-                    print(fe_tokens_id)
+                    #print(fe_tokens_id)
                     iob[fe_tokens_id[0]] = 'B-{}'.format(fe_name)
                     for i in fe_tokens_id[1:]:
                         iob[i] = 'I-{}'.format(fe_name)
-            print(iob)
+            #print(iob)
             annots.append({
                 'text': ' '.join(words),
                 'words': words,
@@ -132,7 +165,7 @@ def get_reverse_mapping(list_of_values):
     """Returns a dict with {value: index}"""
     return {el[1]: el[0] for el in enumerate(list_of_values)}
 
-def get_alignment_matrix(interpretations_by_text, in_types, out_types):
+def get_alignment_matrix(interpretations_by_text, in_types, out_types, filter_source='open-sesame'):
     # build maps from names to indexes for intents and frame names. matrix is indexed [in_idx, out_idx], where in_idx and out_idx can be obtained by looking at the other two returned dicts
     in_types_lookup = get_reverse_mapping(in_types)
     out_types_lookup = get_reverse_mapping(out_types)
@@ -143,7 +176,7 @@ def get_alignment_matrix(interpretations_by_text, in_types, out_types):
         for interp in annots['interpretations']:
             if interp['source'] == 'GOLD':
                 ins.append(in_types_lookup[interp['class']])
-            elif interp['source'] == 'open-sesame':
+            elif interp['source'] == filter_source:
                 outs.append(out_types_lookup[interp['class']])
         points = list(itertools.product(ins, outs))
         for in_, out_ in points:
@@ -151,14 +184,14 @@ def get_alignment_matrix(interpretations_by_text, in_types, out_types):
 
     return matrix, in_types_lookup, out_types_lookup
 
-def print_matrix(matrix, in_types, out_types):
+def print_matrix(matrix, in_types, out_types, ax):
     # normalize by rows
     row_sums = matrix.sum(axis=1)
     new_matrix = matrix / row_sums[:, np.newaxis]
     new_matrix = np.transpose(new_matrix)
     #print(new_matrix)
 
-    fig, ax = plt.subplots(figsize=(len(in_types)/3, len(out_types)/3)) #figsize=(15, 5)
+    # fig, ax = plt.subplots(figsize=(len(in_types)/3, len(out_types)/3)) #figsize=(15, 5)
     cmap = plt.get_cmap('Greens')
     im = ax.imshow(new_matrix, cmap=cmap)
 
@@ -168,7 +201,7 @@ def print_matrix(matrix, in_types, out_types):
     ax.set_xticklabels(in_types, rotation=90)
     ax.set_yticklabels(out_types)
 
-    plt.show()
+    #plt.show()
 
 def save_to_file(data, path):
     with open(str(path), 'w') as f:
@@ -177,7 +210,7 @@ def save_to_file(data, path):
 def read_annotations_and_group(dataset_name):
     data_path = Path('data') / dataset_name
     gold, intent_types = read_gold(data_path / 'source.json')
-    open_sesame, frame_types_open_sesame = read_conll(data_path / 'predicted_opensesame.conll')
+    open_sesame, frame_types_open_sesame = read_conll(data_path / 'predicted_opensesame.conll', gold)
     semafor, frame_types_semafor = read_semafor(data_path / 'predicted_semafor.json')
     all_frame_types = frame_types_open_sesame.union(frame_types_semafor)
     grouped = by_text(gold + open_sesame + semafor)
@@ -216,12 +249,19 @@ def main(dataset_name='botcycle'):
     # write only in the main
     save_to_file(grouped, Path('data') / dataset_name / 'compared_by_sentence.json')
 
-    matrix, intents_lookup, frames_lookup = get_alignment_matrix(grouped, intent_types, frame_types)
-    print_best_n_for_each_gold_type(matrix, intent_types, frame_types, 3)
+    matrix_os, intents_lookup_os, frames_lookup_os = get_alignment_matrix(grouped, intent_types, frame_types)
+    matrix_se, intents_lookup_se, frames_lookup_se = get_alignment_matrix(grouped, intent_types, frame_types, 'SEMAFOR')
+    print_best_n_for_each_gold_type(matrix_os, intent_types, frame_types, 'open-sesame', 3)
+    print_best_n_for_each_gold_type(matrix_se, intent_types, frame_types, 'semafor', 3)
     # and also display the matrix
-    print_matrix(matrix, intent_types, frame_types)
+    fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(24, 16)) #figsize=(15, 5)
+    print_matrix(matrix_os, intent_types, frame_types, ax1)
+    print_matrix(matrix_se, intent_types, frame_types, ax2)
+    plt.tight_layout()
+    plt.show()
 
-def print_best_n_for_each_gold_type(matrix, intent_types, frame_types, n=3):
+def print_best_n_for_each_gold_type(matrix, intent_types, frame_types, origin='alingnment', n=3):
+    print(origin, ':')
     for idx, row in enumerate(matrix):
         # get the indexes of the top elements in the row (the most counted frames)
         best_n_idx = row.argsort()[-n:][::-1]
