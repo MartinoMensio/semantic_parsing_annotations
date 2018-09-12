@@ -26,7 +26,7 @@ def dataset_to_sents(dataset):
         for w in sample['words']:
             new_w = unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore').lower()
             # R&B tokenization difference by open-sesame/SEMAFOR
-            new_w.replace('&', 'n')
+            new_w = new_w.replace('&', 'n')
             if len(new_w) > 1 and new_w.endswith('.'):
                 # this is an acronym / abbreviation that will cause mess in tokenization
                 new_w = new_w[:-1]

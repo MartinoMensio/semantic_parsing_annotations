@@ -15,6 +15,10 @@ import matplotlib.pyplot as plt
 
 from pathlib2 import Path
 
+import spacy
+from spacy.tokens import Doc
+
+
 def read_gold(path):
     """Reads the gold annotations in the format used in botcycle (https://github.com/D2KLab/botcycle/tree/master/nlu/data)"""
     with open(str(path)) as f:
@@ -26,7 +30,7 @@ def read_gold(path):
         for w in s['words']:
             new_w = unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore').lower()
             # R&B tokenization difference by open-sesame/SEMAFOR
-            new_w.replace('&', 'n')
+            new_w = new_w.replace('&', 'n')
             if len(new_w) > 1 and new_w.endswith('.'):
                 # this is an acronym / abbreviation that will cause mess in tokenization
                 new_w = new_w[:-1]
@@ -60,9 +64,10 @@ def read_gold(path):
 def get_lu_indicator_from_slots(sample):
     result = ['_' for _ in sample['slots']]
     lu_indexes = sample.get('lexical_unit_ids', [])
+    doc = nlp.make_doc(u' '.join(sample['words']))
     for lu in lu_indexes:
         index = lu - sample['start_token_id']
-        result[index] = sample['words'][index]
+        result[index] = doc[index].lemma_
     return result
 
 def read_conll(path, gold):
@@ -281,6 +286,19 @@ def print_best_n_for_each_gold_type(matrix, intent_types, frame_types, origin='a
         best_n_with_scores = list(zip(frame_types[best_n_idx], row[best_n_idx]))
         print(intent_types[idx], '-->', best_n_with_scores)
 
+class WhitespaceTokenizer(object):
+    def __init__(self, vocab):
+        self.vocab = vocab
+
+    def __call__(self, text):
+        # strip because otherwise spaces at the end are problems
+        words = text.strip().split(' ')
+        # All tokens 'own' a subsequent space character in this tokenizer
+        spaces = [True] * len(words)
+        return Doc(self.vocab, words=words, spaces=spaces)
+
+nlp = spacy.load('en_core_web_sm')
+nlp.tokenizer = WhitespaceTokenizer(nlp.vocab)
 
 if __name__ == '__main__':
     main('botcycle')
