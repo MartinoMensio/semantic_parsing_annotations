@@ -22,7 +22,19 @@ def read_gold(path):
 
     # avoid non-ascii
     for s in content['data']:
-        s['words'] = [unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'replace').lower() for w in s['words']]
+        words = []
+        for w in s['words']:
+            new_w = unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore').lower()
+            # R&B tokenization difference by open-sesame/SEMAFOR
+            new_w.replace('&', 'n')
+            if len(new_w) > 1 and new_w.endswith('.'):
+                # this is an acronym / abbreviation that will cause mess in tokenization
+                new_w = new_w[:-1]
+            if not new_w:
+                # add an unk if the word was only non-ascii chars. So will mantain the alignment with annotations
+                new_w = 'unk'
+            words.append(new_w)
+        s['words'] = words
     result = [
         {
             'text': ' '.join(s['words']),
@@ -273,5 +285,5 @@ def print_best_n_for_each_gold_type(matrix, intent_types, frame_types, origin='a
 if __name__ == '__main__':
     main('botcycle')
     main('atis')
-    main('nlu-benchmark')
     main('huric')
+    main('nlu-benchmark')

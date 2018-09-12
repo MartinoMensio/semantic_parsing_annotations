@@ -7,7 +7,7 @@ function gdrive_download () {
   rm -rf /tmp/cookies.txt
 }
 
-pushd
+pushd open-sesame
 
 gdrive_download 1pDagzQup--DPOrb21-dIPydwInTSHkMU fn1.7-pretrained-targetid.tar.gz
 gdrive_download 1K6Nc9d4yRai7a1YUSq3EI2-2rivm2uOi fn1.7-pretrained-frameid.tar.gz

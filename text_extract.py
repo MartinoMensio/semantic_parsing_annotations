@@ -20,7 +20,23 @@ def dataset_to_sents(dataset):
     sentences = [' '.join(sample['words']) for sample in dataset['data']]
 
     # remove non-ascii
-    sentences = [unicodedata.normalize('NFKD', unicode(s)).encode('ascii', 'replace') for s in sentences]
+    sentences = []
+    for sample in dataset['data']:
+        words = []
+        for w in sample['words']:
+            new_w = unicodedata.normalize('NFKD', unicode(w)).encode('ascii', 'ignore').lower()
+            # R&B tokenization difference by open-sesame/SEMAFOR
+            new_w.replace('&', 'n')
+            if len(new_w) > 1 and new_w.endswith('.'):
+                # this is an acronym / abbreviation that will cause mess in tokenization
+                new_w = new_w[:-1]
+            if not new_w:
+                # add an unk if the word was only non-ascii chars. So will mantain the alignment with annotations
+                new_w = 'unk'
+            words.append(new_w)
+        s = ' '.join(words)
+        sentences.append(s)
+
     sentences = set(sentences)
 
     return sentences
